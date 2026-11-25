@@ -43,7 +43,8 @@ DIFW-KNN/
 │   ├── 03_stratified_split.py                        # Tahap 03: Stratified Train-Test Split & 5-Fold Setup
 │   ├── 04_baseline_knn.py                            # Tahap 04: Baseline KNN (Training / Development Only)
 │   ├── 05_proposed_difw_knn.py                       # Tahap 05: Proposed DIFW-KNN (6 Sub-Komponen pada Training Data)
-│   └── 06_crossvalidation_tuning.py                  # Tahap 06: 5-Fold CV & Hyperparameter Tuning (Baseline + DIFW-KNN)
+│   ├── 06_crossvalidation_tuning.py                  # Tahap 06: 5-Fold CV & Hyperparameter Tuning (Baseline + DIFW-KNN)
+│   └── 07_final_model_evaluation.py                  # Tahap 07: Evaluasi Final Hold-out Test Data + 95% Bootstrap CI
 │
 ├── tests/
 │   ├── test_mixed_distance.py                        # Unit test metrik jarak Mixed-Type, OpenBLAS, & pdays
@@ -56,7 +57,8 @@ DIFW-KNN/
 │   ├── 03_Stratified_Train_Test_Split.ipynb          # Tahap 03: Stratified Split (Hold-out Test dikunci)
 │   ├── 04_Baseline_KNN.ipynb                         # Tahap 04: Baseline KNN (Training / Development Data)
 │   ├── 05_Proposed_DIFW_KNN.ipynb                    # Tahap 05: Proposed DIFW-KNN (6 Sub-Komponen Algoritma Usulan)
-│   └── 06_CrossValidation_Hyperparameter_Tuning.ipynb # Tahap 06: 5-Fold CV & Hyperparameter Tuning Gabungan
+│   ├── 06_CrossValidation_Hyperparameter_Tuning.ipynb # Tahap 06: 5-Fold CV & Hyperparameter Tuning Gabungan
+│   └── 07_Final_Model_Evaluation.ipynb               # Tahap 07: Final Model Evaluation pada Hold-out Test Data
 │
 ├── outputs/
 │   ├── eda/                                          # Tabel statistik & 5 grafik EDA
@@ -64,7 +66,8 @@ DIFW-KNN/
 │   ├── split/                                        # Uji KS/Chi2 covariate balance, ringkasan CV, & 2 grafik
 │   ├── baseline_knn/                                 # Profil 5-Fold Development & OOF Baseline KNN (E0)
 │   ├── proposed_difw_knn/                            # Validasi 9 check komponen, bobot fitur, 5-seed stability, & grafik
-│   └── cv_tuning/                                    # Grid search 5-Fold CV, hyperparameter terpilih, & 3 grafik
+│   ├── cv_tuning/                                    # Grid search 5-Fold CV, hyperparameter terpilih, & 3 grafik
+│   └── final_evaluation/                             # Metrik Hold-out Test E0-E5, 95% Bootstrap CI, & 3 grafik
 │
 ├── Desain_Penelitian_DIFW_KNN.md                     # Dokumen desain & protokol penelitian
 ├── Laporan_EDA_DIFW_KNN.md                           # Laporan Tahap 01: Data Understanding & EDA
@@ -73,6 +76,7 @@ DIFW-KNN/
 ├── Laporan_Baseline_KNN_DIFW_KNN.md                  # Laporan Tahap 04: Baseline KNN (Training/Dev Only)
 ├── Laporan_Proposed_DIFW_KNN.md                      # Laporan Tahap 05: Proposed DIFW-KNN (Training/Dev Only)
 ├── Laporan_CrossValidation_Tuning_DIFW_KNN.md        # Laporan Tahap 06: 5-Fold CV & Hyperparameter Tuning
+├── Laporan_Final_Evaluation_DIFW_KNN.md              # Laporan Tahap 07: Final Model Evaluation (Hold-out Test)
 ├── README.md
 └── requirements.txt                                  # Dependensi Python teruji (Python 3.13.7)
 ```
@@ -110,6 +114,9 @@ python src/05_proposed_difw_knn.py
 
 # Tahap 06: Joint 5-Fold Cross-Validation & Hyperparameter Tuning (Training Data Only)
 python src/06_crossvalidation_tuning.py
+
+# Tahap 07: Final Model Evaluation on Hold-out Test Data + 95% Bootstrap CI
+python src/07_final_model_evaluation.py
 ```
 
 ### 4. Membuka Notebook Interaktif (`.ipynb`)
@@ -120,6 +127,7 @@ Buka file berikut menggunakan VS Code atau JupyterLab (seluruh sel sudah dieksek
 - `notebooks/04_Baseline_KNN.ipynb`
 - `notebooks/05_Proposed_DIFW_KNN.ipynb`
 - `notebooks/06_CrossValidation_Hyperparameter_Tuning.ipynb`
+- `notebooks/07_Final_Model_Evaluation.ipynb`
 
 ---
 
@@ -131,6 +139,6 @@ Buka file berikut menggunakan VS Code atau JupyterLab (seluruh sel sudah dieksek
 - [x] **Tahap 04 — Baseline KNN (`Training / Development Data` Only):** (`src/baseline_knn.py`, `src/04_baseline_knn.py`, `notebooks/04_Baseline_KNN.ipynb`)
 - [x] **Tahap 05 — Proposed DIFW-KNN (`Mixed-Type Distance` $\rightarrow$ `Balanced Triplet Sampling` $\rightarrow$ `Triplet Margin Loss` $\rightarrow$ `Supervised Feature Weight Learning` $\rightarrow$ `Weighted KNN & Local Probability` $\rightarrow$ `Cost-Sensitive Decision Rule` pada `Training Data`):** (`src/05_proposed_difw_knn.py`, `notebooks/05_Proposed_DIFW_KNN.ipynb`)
 - [x] **Tahap 06 — Cross-Validation & Hyperparameter Tuning (Gabungan Baseline KNN & Proposed DIFW-KNN pada Training Data):** (`src/06_crossvalidation_tuning.py`, `notebooks/06_CrossValidation_Hyperparameter_Tuning.ipynb`)
-- [ ] **Tahap 07 — Final Model Evaluation (Membuka `Hold-out Test Data` + 95% Bootstrap CI)**
+- [x] **Tahap 07 — Final Model Evaluation (Membuka `Hold-out Test Data` + 95% Bootstrap CI):** (`src/07_final_model_evaluation.py`, `notebooks/07_Final_Model_Evaluation.ipynb`)
 - [ ] **Tahap 08 — Comparative Analysis & Ablation Study (`E0` s.d. `E5`)**
 - [ ] **Tahap 09 — Explainability with LIME & Conclusions**

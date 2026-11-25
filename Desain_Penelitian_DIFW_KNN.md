@@ -78,11 +78,11 @@
 
 | Model | Accuracy | Precision (yes) | Recall (yes) | F1 (yes) | PR-AUC | MCC |
 |---|---:|---:|---:|---:|---:|---:|
-| Standard KNN | — | — | — | — | — | — |
-| Optimized KNN | — | — | — | — | — | — |
-| Mixed-Type KNN | — | — | — | — | — | — |
-| Feature-Weighted KNN | — | — | — | — | — | — |
-| Cost-Sensitive KNN | — | — | — | — | — | — |
-| DIFW-KNN lengkap | — | — | — | — | — | — |
+| Standard KNN (E0: k=5, uniform, tau=0.50) | 0.8884 | 0.5650 | 0.2013 | 0.2969 | 0.2921 | 0.2907 |
+| Optimized KNN (E1: k=3, uniform, tau=0.50) | 0.8816 | 0.4876 | 0.2420 | 0.3234 | 0.2619 | 0.2863 |
+| Mixed-Type KNN (E2: k=71, q=0.5, tau=0.50) | 0.8924 | 0.7033 | 0.1389 | 0.2320 | 0.4160 | 0.2806 |
+| Feature-Weighted KNN (E3: m=0.4, lam=0.15, k=71, q=0.5, tau=0.50) | 0.8968 | 0.6731 | 0.2297 | 0.3425 | 0.4479 | 0.3528 |
+| Cost-Sensitive KNN (E4: k=71, q=0.5, 5:1, tau=0.1667) | 0.8577 | 0.4125 | 0.5104 | 0.4563 | 0.4160 | 0.3783 |
+| DIFW-KNN lengkap (E5: m=0.4, lam=0.15, k=71, q=0.5, 5:1, tau=0.1667) | 0.8628 | 0.4299 | 0.5302 | 0.4748 | 0.4479 | 0.3998 |
 
-**Catatan:** Sesuai *flowchart* penelitian, tabel hasil akhir pada `Hold-out Test Set` (`9.043` observasi) dikunci dan baru akan diisi pada **Tahap 07 (`Final Model Evaluation`)** setelah `Baseline KNN` (Tahap 04) dan `Proposed DIFW-KNN` (Tahap 05) melewati **Tahap 06 (`Cross-Validation & Hyperparameter Tuning`)** pada `Training / Development Data` (`36.168` observasi).
+**Catatan:** Seluruh metrik `E0`–`E5` diukur satu kali pada `Hold-out Test Set` (`9.043` observasi) menggunakan *hyperparameter* terkunci hasil 5-Fold CV Tahap 06 ([`Laporan_Final_Evaluation_DIFW_KNN.md`](file:///c:/Users/Advan%20Workplus/Downloads/jurnak/Laporan_Final_Evaluation_DIFW_KNN.md)). Varian referensi `E1_PR` (Best CV PR-AUC: `k=51, distance`) mencapai `PR-AUC = 0.4042`, `ROC-AUC = 0.7656`, `F1 = 0.2284`, `MCC = 0.2793`. Pada `E5`, `ROC-AUC = 0.7888`, `G-Mean = 0.6934`, dan rata-rata biaya kesalahan turun `26.43%` dibanding `E0` (`0.3571` vs `0.4853`).

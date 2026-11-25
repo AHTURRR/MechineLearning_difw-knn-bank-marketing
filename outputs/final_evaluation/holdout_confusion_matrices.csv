@@ -1,0 +1,8 @@
+model_id,model_name,threshold,tn,fp,fn,tp,total_cost,mean_cost,cost_reduction_vs_e0_pct
+E0,Standard KNN,0.5,7821,164,845,213,4389.0,0.4853,0.0
+E1,Optimized KNN (Best CV F1),0.5,7716,269,802,256,4279.0,0.4732,2.51
+E1_PR,Optimized KNN (Best CV PR-AUC),0.5,7926,59,914,144,4629.0,0.5119,-5.47
+E2,Mixed-Type KNN,0.5,7923,62,911,147,4617.0,0.5106,-5.19
+E3,Feature-Weighted KNN,0.5,7867,118,815,243,4193.0,0.4637,4.47
+E4,Cost-Sensitive KNN,0.166667,7216,769,518,540,3359.0,0.3714,23.47
+E5,DIFW-KNN Lengkap,0.166667,7241,744,497,561,3229.0,0.3571,26.43

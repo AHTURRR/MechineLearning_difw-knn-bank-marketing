@@ -558,30 +558,50 @@ class DIFWKNNClassifier(BaseEstimator, ClassifierMixin):
         w_cat_sum = float(np.sum(w_cat))
 
         use_blas = (n_cat > 0) and (w_cat_sum > 0.0) and (n_q * n_r >= 4096)
-        r_oh = (
-            self.metric_.build_weighted_categorical_onehot(self.X_train_enc_.categorical, w_cat)
-            if use_blas
-            else None
-        )
+        if use_blas:
+            r_oh = self.metric_.build_weighted_categorical_onehot(
+                self.X_train_enc_.categorical, w_cat
+            ).astype(np.float32)
+            q_oh_all = self.metric_.build_weighted_categorical_onehot(
+                enc_q.categorical, w_cat
+            ).astype(np.float32)
+            assert self.metric_.ranges_ is not None
+            r_num_s = (self.X_train_enc_.numeric / self.metric_.ranges_[None, :]).astype(np.float32)
+            q_num_s = (enc_q.numeric / self.metric_.ranges_[None, :]).astype(np.float32)
+            w_num_32 = w_num.astype(np.float32)
+            w_cat_sum_32 = np.float32(w_cat_sum)
+            diff_buf = np.empty((min(self.batch_size, n_q), n_r), dtype=np.float32)
+        else:
+            r_oh = None
+            q_oh_all = None
+            r_num_s = None
+            q_num_s = None
+            w_num_32 = None
+            w_cat_sum_32 = None
+            diff_buf = None
 
         for start in range(0, n_q, self.batch_size):
             end = min(start + self.batch_size, n_q)
-            q_num = enc_q.numeric[start:end]
-            q_cat = enc_q.categorical[start:end]
+            b_len = end - start
 
-            if use_blas and r_oh is not None:
-                q_oh = self.metric_.build_weighted_categorical_onehot(q_cat, w_cat)
-                dist_batch = np.maximum(0.0, w_cat_sum - (q_oh @ r_oh.T))
-                assert self.metric_.ranges_ is not None
+            if use_blas and r_oh is not None and q_oh_all is not None and r_num_s is not None and q_num_s is not None and w_num_32 is not None and w_cat_sum_32 is not None and diff_buf is not None:
+                buf = diff_buf[:b_len]
+                dist_batch = w_cat_sum_32 - (q_oh_all[start:end] @ r_oh.T)
+                np.maximum(dist_batch, 0.0, out=dist_batch)
+                q_sub = q_num_s[start:end]
                 for j in range(n_num):
-                    if w_num[j] == 0.0:
+                    wj = float(w_num_32[j])
+                    if wj <= 0.0:
                         continue
-                    diff = np.abs(q_num[:, j : j + 1] - self.X_train_enc_.numeric[:, j][None, :])
-                    dist_batch += w_num[j] * np.minimum(1.0, diff / self.metric_.ranges_[j])
+                    np.subtract(q_sub[:, j : j + 1], r_num_s[:, j][None, :], out=buf)
+                    np.abs(buf, out=buf)
+                    np.minimum(buf, 1.0, out=buf)
+                    buf *= wj
+                    dist_batch += buf
             else:
                 q_batch = MixedTypeEncoded(
-                    numeric=q_num,
-                    categorical=q_cat,
+                    numeric=enc_q.numeric[start:end],
+                    categorical=enc_q.categorical[start:end],
                     feature_names=enc_q.feature_names,
                 )
                 dist_batch = self.metric_.compute_weighted_distance_matrix(
@@ -601,7 +621,7 @@ class DIFWKNNClassifier(BaseEstimator, ClassifierMixin):
                 top_idx = np.take_along_axis(part_idx, order, axis=1)
                 top_dist = np.take_along_axis(part_dist, order, axis=1)
 
-            distances[start:end] = top_dist
+            distances[start:end] = top_dist.astype(np.float64)
             indices[start:end] = top_idx
 
         return distances, indices
