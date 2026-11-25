@@ -319,6 +319,29 @@ class MixedTypeDistanceMetric(BaseEstimator, TransformerMixin):
 
         return np.concatenate(parts, axis=1) if len(parts) > 1 else parts[0]
 
+    def build_weighted_categorical_onehot(
+        self,
+        cat_arr: np.ndarray,
+        w_cat: np.ndarray,
+    ) -> np.ndarray:
+        """Encode categorical matrix into sqrt(w_j)-scaled one-hot matrix (unseen < 0 -> zeros)."""
+        cols: list[np.ndarray] = []
+        for j, col in enumerate(self.categorical_cols_):
+            wj = float(w_cat[j])
+            if wj <= 0.0:
+                continue
+            n_c = len(self.category_maps_[col])
+            eye = np.eye(n_c, dtype=np.float64) * np.sqrt(wj)
+            col_vals = cat_arr[:, j]
+            safe_idx = np.where(col_vals >= 0, col_vals, 0)
+            oh = eye[safe_idx]
+            if np.any(col_vals < 0):
+                oh[col_vals < 0] = 0.0
+            cols.append(oh)
+        if not cols:
+            return np.zeros((cat_arr.shape[0], 0), dtype=np.float64)
+        return np.hstack(cols)
+
     def compute_weighted_distance_matrix(
         self,
         queries: MixedTypeEncoded | pd.DataFrame,
@@ -342,30 +365,38 @@ class MixedTypeDistanceMetric(BaseEstimator, TransformerMixin):
         n_cat = len(self.categorical_cols_)
         w_num = w[:n_num]
         w_cat = w[n_num:]
+        w_cat_sum = float(np.sum(w_cat))
 
         n_q = enc_q.n_samples
         n_r = enc_r.n_samples
         dist_mat = np.zeros((n_q, n_r), dtype=np.float64)
 
+        use_blas_cat = (n_cat > 0) and (w_cat_sum > 0.0) and (n_q * n_r >= 4096)
+        r_oh = self.build_weighted_categorical_onehot(enc_r.categorical, w_cat) if use_blas_cat else None
+
         for start in range(0, n_q, batch_size):
             end = min(start + batch_size, n_q)
             q_num = enc_q.numeric[start:end]
             q_cat = enc_q.categorical[start:end]
-            acc = np.zeros((end - start, n_r), dtype=np.float64)
+
+            if use_blas_cat and r_oh is not None:
+                q_oh = self.build_weighted_categorical_onehot(q_cat, w_cat)
+                acc = np.maximum(0.0, w_cat_sum - (q_oh @ r_oh.T))
+            else:
+                acc = np.zeros((end - start, n_r), dtype=np.float64)
+                for j in range(n_cat):
+                    if w_cat[j] == 0.0:
+                        continue
+                    q_col = q_cat[:, j : j + 1]
+                    r_col = enc_r.categorical[:, j][None, :]
+                    mismatch = (q_col != r_col) | (q_col < 0) | (r_col < 0)
+                    acc += w_cat[j] * mismatch
 
             for j in range(n_num):
                 if w_num[j] == 0.0:
                     continue
                 diff = np.abs(q_num[:, j : j + 1] - enc_r.numeric[:, j][None, :])
                 acc += w_num[j] * np.minimum(1.0, diff / self.ranges_[j])
-
-            for j in range(n_cat):
-                if w_cat[j] == 0.0:
-                    continue
-                q_col = q_cat[:, j : j + 1]
-                r_col = enc_r.categorical[:, j][None, :]
-                mismatch = (q_col != r_col) | (q_col < 0) | (r_col < 0)
-                acc += w_cat[j] * mismatch
 
             dist_mat[start:end] = acc
         return dist_mat

@@ -164,3 +164,34 @@ def test_invalid_inputs_raise_value_error() -> None:
         normalize_feature_weights([-0.1, 1.1], n_features=2)
     with pytest.raises(ValueError):
         normalize_feature_weights([0.0, 0.0], n_features=2)
+
+
+def test_openblas_categorical_acceleration_matches_exact_with_unseen() -> None:
+    rng = np.random.default_rng(7)
+    n_r, n_q = 90, 60  # n_q * n_r = 5400 >= 4096 triggers BLAS path
+    train_df = pd.DataFrame(
+        {
+            "num1": rng.normal(10.0, 3.0, size=n_r),
+            "cat1": rng.choice(["a", "b", "c"], size=n_r),
+            "cat2": rng.choice(["x", "y"], size=n_r),
+        }
+    )
+    query_df = pd.DataFrame(
+        {
+            "num1": rng.normal(10.0, 3.0, size=n_q),
+            "cat1": rng.choice(["a", "b", "unseen_val"], size=n_q),
+            "cat2": rng.choice(["x", "y"], size=n_q),
+        }
+    )
+    metric = MixedTypeDistanceMetric(
+        numeric_cols=["num1"],
+        categorical_cols=["cat1", "cat2"],
+        auto_engineer_pdays=False,
+    ).fit(train_df)
+
+    w = np.array([0.25, 0.45, 0.30])
+    d_tensor = metric.compute_pairwise_feature_distances(query_df, train_df)
+    expected = np.tensordot(d_tensor, w, axes=([2], [0]))
+    blas_mat = metric.compute_weighted_distance_matrix(query_df, train_df, weights=w, batch_size=25)
+    assert np.allclose(blas_mat, expected, atol=1e-12)
+

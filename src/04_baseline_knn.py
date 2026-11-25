@@ -1,18 +1,20 @@
-"""Stage 04: Baseline KNN Evaluation (E0 Standard KNN & E1 Optimized KNN).
+"""Stage 04: Baseline KNN Model Development on Training / Development Data.
 
-Executes:
-1. Unit check verifying exact probability equivalence against KNeighborsClassifier.
-2. Leak-free Stratified 5-Fold CV grid search on Training/Development data
-   across k in {3, 5, 7, 11, 15, 21, 31, 51, 71, 101} and weights in {'uniform', 'distance'}.
-3. Final training on full 36,168 training set and evaluation on 9,043 Hold-out Test
-   for E0 (Standard KNN: k=5, uniform) and E1 (Optimized KNN), including 95% bootstrap CIs.
-4. Generates figures under outputs/baseline_knn/figures/ and writes
-   Laporan_Baseline_KNN_DIFW_KNN.md.
+Strictly adheres to the research flowchart:
+- Operates EXCLUSIVELY on Training / Development Data (36,168 observations);
+  Hold-out Test Data (9,043 observations) remains locked until Stage 07.
+- Verifies exact probability equivalence between fast NearestNeighbors helper and
+  scikit-learn's KNeighborsClassifier on Fold 0.
+- Evaluates Standard Baseline KNN (E0: k=5, weights='uniform', Euclidean distance on
+  StandardScaler + OneHotEncoder representation) and k=5 distance-weighted reference
+  across the 5 canonical development folds (Out-of-Fold evaluation).
+- Saves development tables, diagnostic figures, and Laporan_Baseline_KNN_DIFW_KNN.md.
 """
 
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_recall_curve, roc_curve
+from sklearn.neighbors import KNeighborsClassifier
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -29,8 +32,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.baseline_knn import (
     METRIC_KEYS,
-    evaluate_holdout_model,
-    run_stratified_cv_grid,
+    compute_classification_metrics,
     verify_knn_probability_equivalence,
 )
 from src.preprocessing import BaselineEuclideanPreprocessor
@@ -40,11 +42,6 @@ PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "baseline_knn"
 FIGURES_DIR = OUTPUT_DIR / "figures"
 REPORT_PATH = PROJECT_ROOT / "Laporan_Baseline_KNN_DIFW_KNN.md"
-
-K_GRID = [3, 5, 7, 11, 15, 21, 31, 51, 71, 101]
-WEIGHTS_GRID = ["uniform", "distance"]
-RANDOM_STATE = 42
-N_BOOTSTRAP = 1000
 
 
 def configure_plot_style() -> None:
@@ -77,173 +74,218 @@ def df_to_markdown_table(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def create_baseline_figures(
-    cv_summary: pd.DataFrame,
-    best_f1_row: pd.Series,
-    best_prauc_row: pd.Series,
-    holdout_results: list[dict[str, Any]],
-    y_test: np.ndarray,
-    probs_map: dict[str, np.ndarray],
+def evaluate_baseline_on_dev_folds(
+    X_train_df: pd.DataFrame,
+    y_train: np.ndarray,
+    fold_ids: np.ndarray,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, np.ndarray]]:
+    """Evaluate baseline k=5 Euclidean KNN variants on 5 development folds (leak-free)."""
+    configs = [
+        ("E0_Standard_k5_uniform", 5, "uniform"),
+        ("Ref_Euclidean_k5_distance", 5, "distance"),
+    ]
+    oof_probs: dict[str, np.ndarray] = {
+        name: np.zeros(len(y_train), dtype=np.float64) for name, _, _ in configs
+    }
+    per_fold_rows: list[dict[str, Any]] = []
+
+    for fold_id in sorted(int(f) for f in np.unique(fold_ids)):
+        val_mask = fold_ids == fold_id
+        tr_mask = ~val_mask
+
+        X_tr = X_train_df.loc[tr_mask].reset_index(drop=True)
+        y_tr = y_train[tr_mask]
+        X_va = X_train_df.loc[val_mask].reset_index(drop=True)
+        y_va = y_train[val_mask]
+
+        t0 = time.perf_counter()
+        prep = BaselineEuclideanPreprocessor()
+        X_tr_euc = prep.fit_transform(X_tr)
+        X_va_euc = prep.transform(X_va)
+        prep_sec = time.perf_counter() - t0
+
+        for name, k_val, w_val in configs:
+            t1 = time.perf_counter()
+            clf = KNeighborsClassifier(
+                n_neighbors=k_val,
+                weights=w_val,
+                metric="euclidean",
+                n_jobs=-1,
+            )
+            clf.fit(X_tr_euc, y_tr)
+            y_prob = clf.predict_proba(X_va_euc)[:, 1]
+            knn_sec = time.perf_counter() - t1
+
+            oof_probs[name][val_mask] = y_prob
+            metrics = compute_classification_metrics(y_va, y_prob, threshold=0.5)
+            per_fold_rows.append(
+                {
+                    "variant": name,
+                    "fold_id": fold_id,
+                    "k": k_val,
+                    "weights": w_val,
+                    "prep_sec": round(prep_sec, 4),
+                    "knn_sec": round(knn_sec, 4),
+                    **metrics,
+                }
+            )
+
+    per_fold_df = pd.DataFrame(per_fold_rows)
+    summary_rows: list[dict[str, Any]] = []
+    for name, k_val, w_val in configs:
+        sub = per_fold_df[per_fold_df["variant"] == name]
+        oof_m = compute_classification_metrics(y_train, oof_probs[name], threshold=0.5)
+        row: dict[str, Any] = {
+            "variant": name,
+            "k": k_val,
+            "weights": w_val,
+        }
+        for m in METRIC_KEYS:
+            row[f"{m}_mean"] = round(float(sub[m].mean()), 4)
+            row[f"{m}_std"] = round(float(sub[m].std(ddof=1)), 4)
+        row["oof_tn"] = oof_m["tn"]
+        row["oof_fp"] = oof_m["fp"]
+        row["oof_fn"] = oof_m["fn"]
+        row["oof_tp"] = oof_m["tp"]
+        summary_rows.append(row)
+
+    return per_fold_df, pd.DataFrame(summary_rows), oof_probs
+
+
+def create_baseline_dev_figures(
+    per_fold_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
+    y_train: np.ndarray,
+    oof_probs: dict[str, np.ndarray],
 ) -> list[Path]:
-    """Generate CV tuning curves, ROC/PR curves, and confusion matrix comparisons."""
+    """Generate development-only figures for Baseline KNN (E0)."""
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
 
-    # 1. CV hyperparameter tuning curves (2x2)
-    fig, axes = plt.subplots(2, 2, figsize=(13, 8.6))
-    panels = [
-        ("f1_yes", "5-Fold CV: F1-Score (yes)"),
-        ("mcc", "5-Fold CV: Matthews Correlation Coefficient (MCC)"),
-        ("pr_auc", "5-Fold CV: PR-AUC"),
-        ("roc_auc", "5-Fold CV: ROC-AUC"),
-    ]
-    colors = {"uniform": "#4C72B0", "distance": "#DD8452"}
-    markers = {"uniform": "o", "distance": "s"}
+    # 1. Per-fold stability & mean metric profile of E0 Standard KNN
+    e0_folds = per_fold_df[per_fold_df["variant"] == "E0_Standard_k5_uniform"].sort_values("fold_id")
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.6))
 
-    for ax, (metric, title) in zip(axes.flat, panels):
-        for w in WEIGHTS_GRID:
-            sub = cv_summary[cv_summary["weights"] == w].sort_values("k")
-            k_vals = sub["k"].to_numpy()
-            mean_v = sub[f"{metric}_mean"].to_numpy()
-            std_v = sub[f"{metric}_std"].to_numpy()
-            ax.plot(k_vals, mean_v, marker=markers[w], color=colors[w], linewidth=2, label=f"weights='{w}'")
-            ax.fill_between(k_vals, mean_v - std_v, mean_v + std_v, color=colors[w], alpha=0.14)
+    fold_lbls = [f"Fold {int(f)}" for f in e0_folds["fold_id"]]
+    for m_col, label, color, marker in [
+        ("f1_yes", "F1 (yes)", "#4C72B0", "o"),
+        ("mcc", "MCC", "#55A868", "s"),
+        ("pr_auc", "PR-AUC", "#DD8452", "^"),
+        ("recall_yes", "Recall (yes)", "#C44E52", "d"),
+    ]:
+        axes[0].plot(fold_lbls, e0_folds[m_col], marker=marker, linewidth=2, color=color, label=label)
+    axes[0].set_ylim(0.14, 0.36)
+    axes[0].set_title("Konsistensi Metrik E0 Standard KNN (k=5, uniform)\nAcross 5 Development Folds")
+    axes[0].set_ylabel("Skor Validasi per Fold")
+    axes[0].legend(fontsize=8.5)
 
-        # Highlight E0 (k=5, uniform)
-        e0_sub = cv_summary[(cv_summary["k"] == 5) & (cv_summary["weights"] == "uniform")].iloc[0]
-        ax.scatter([5], [e0_sub[f"{metric}_mean"]], color="#333333", s=70, zorder=5, label="E0 (k=5, uniform)")
+    x = np.arange(len(METRIC_KEYS))
+    w = 0.36
+    r0 = summary_df.iloc[0]
+    r1 = summary_df.iloc[1]
+    axes[1].bar(
+        x - w / 2,
+        [r0[f"{m}_mean"] for m in METRIC_KEYS],
+        yerr=[r0[f"{m}_std"] for m in METRIC_KEYS],
+        width=w,
+        capsize=3,
+        color="#4C72B0",
+        label="E0: k=5, uniform",
+    )
+    axes[1].bar(
+        x + w / 2,
+        [r1[f"{m}_mean"] for m in METRIC_KEYS],
+        yerr=[r1[f"{m}_std"] for m in METRIC_KEYS],
+        width=w,
+        capsize=3,
+        color="#DD8452",
+        label="Ref: k=5, distance",
+    )
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(["Acc", "Prec", "Rec", "F1", "PR-AUC", "ROC-AUC", "MCC", "G-Mean"], rotation=20)
+    axes[1].set_ylim(0, 1.02)
+    axes[1].set_title("Profil Metrik Baseline KNN pada Development Data (±1 SD)")
+    axes[1].set_ylabel("Skor Rata-Rata 5-Fold Dev")
+    axes[1].legend(fontsize=8.5)
 
-        # Highlight E1 best F1
-        ax.axvline(int(best_f1_row["k"]), color="#2CA02C", linestyle="--", linewidth=1.2,
-                   label=f"Best F1/MCC: k={int(best_f1_row['k'])}, {best_f1_row['weights']}")
-        if int(best_prauc_row["k"]) != int(best_f1_row["k"]) or best_prauc_row["weights"] != best_f1_row["weights"]:
-            ax.axvline(int(best_prauc_row["k"]), color="#9467BD", linestyle=":", linewidth=1.4,
-                       label=f"Best PR-AUC: k={int(best_prauc_row['k'])}, {best_prauc_row['weights']}")
-
-        ax.set_title(title)
-        ax.set_xlabel("Nilai k (Jumlah Tetangga)")
-        ax.set_ylabel(metric)
-        ax.set_xticks(K_GRID)
-        ax.legend(fontsize=8)
-
-    fig.suptitle("Hyperparameter Tuning Baseline KNN pada 5-Fold Stratified CV (Data Training)", fontsize=13, fontweight="bold")
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
-    p1 = FIGURES_DIR / "01_cv_hyperparameter_tuning.png"
+    fig.tight_layout()
+    p1 = FIGURES_DIR / "01_baseline_dev_fold_metrics.png"
     fig.savefig(p1, bbox_inches="tight")
     plt.close(fig)
     saved.append(p1)
 
-    # 2. Hold-out ROC & PR curves
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5.0))
-    palette = ["#4C72B0", "#55A868", "#8172B3"]
-    for idx, res in enumerate(holdout_results):
-        mid = res["model_id"]
-        label_base = f"{mid}: {res['model_name']} (k={res['k']}, {res['weights']})"
-        y_prob = probs_map[mid]
+    # 2. Out-of-Fold ROC, PR Curve, and Confusion Matrix on Training/Dev (36,168)
+    fig = plt.figure(figsize=(14.5, 4.7))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.15, 1.15, 0.95])
+    ax_roc = fig.add_subplot(gs[0, 0])
+    ax_pr = fig.add_subplot(gs[0, 1])
+    ax_cm = fig.add_subplot(gs[0, 2])
 
-        fpr, tpr, _ = roc_curve(y_test, y_prob)
-        axes[0].plot(fpr, tpr, color=palette[idx % len(palette)], linewidth=2.0,
-                     label=f"{label_base} | AUC={res['roc_auc']:.4f}")
+    for (name, label, col) in [
+        ("E0_Standard_k5_uniform", "E0 Standard (k=5, uniform)", "#4C72B0"),
+        ("Ref_Euclidean_k5_distance", "Ref Euclidean (k=5, distance)", "#DD8452"),
+    ]:
+        p_oof = oof_probs[name]
+        m_oof = compute_classification_metrics(y_train, p_oof, threshold=0.5)
+        fpr, tpr, _ = roc_curve(y_train, p_oof)
+        prec, rec, _ = precision_recall_curve(y_train, p_oof)
+        ax_roc.plot(fpr, tpr, color=col, linewidth=2, label=f"{label}\nROC-AUC={m_oof['roc_auc']:.4f}")
+        ax_pr.plot(rec, prec, color=col, linewidth=2, label=f"{label}\nPR-AUC={m_oof['pr_auc']:.4f}")
 
-        prec, rec, _ = precision_recall_curve(y_test, y_prob)
-        axes[1].plot(rec, prec, color=palette[idx % len(palette)], linewidth=2.0,
-                     label=f"{label_base} | PR-AUC={res['pr_auc']:.4f}")
+    ax_roc.plot([0, 1], [0, 1], color="#666666", linestyle="--", linewidth=1, label="Random (0.5000)")
+    ax_roc.set_title("Out-of-Fold ROC Curve (Training/Dev)")
+    ax_roc.set_xlabel("False Positive Rate")
+    ax_roc.set_ylabel("True Positive Rate")
+    ax_roc.legend(fontsize=8, loc="lower right")
 
-    axes[0].plot([0, 1], [0, 1], color="#666666", linestyle="--", linewidth=1, label="Random (0.5000)")
-    axes[0].set_title("Kurva ROC — Hold-out Test Set (9,043)")
-    axes[0].set_xlabel("False Positive Rate (1 - Specificity)")
-    axes[0].set_ylabel("True Positive Rate (Recall)")
-    axes[0].legend(fontsize=8, loc="lower right")
+    pos_rate = float(y_train.mean())
+    ax_pr.axhline(pos_rate, color="#666666", linestyle="--", linewidth=1, label=f"No-Skill ({pos_rate:.4f})")
+    ax_pr.set_title("Out-of-Fold PR Curve (Training/Dev)")
+    ax_pr.set_xlabel("Recall (yes)")
+    ax_pr.set_ylabel("Precision (yes)")
+    ax_pr.legend(fontsize=8, loc="upper right")
 
-    pos_base = float(y_test.mean())
-    axes[1].axhline(pos_base, color="#666666", linestyle="--", linewidth=1, label=f"No-Skill ({pos_base:.4f})")
-    axes[1].set_title("Kurva Precision–Recall — Hold-out Test Set (9,043)")
-    axes[1].set_xlabel("Recall (yes)")
-    axes[1].set_ylabel("Precision (yes)")
-    axes[1].legend(fontsize=8, loc="upper right")
+    cm = np.array([[int(r0["oof_tn"]), int(r0["oof_fp"])], [int(r0["oof_fn"]), int(r0["oof_tp"])]])
+    ax_cm.imshow(cm, cmap="Blues")
+    ax_cm.set_xticks([0, 1])
+    ax_cm.set_yticks([0, 1])
+    ax_cm.set_xticklabels(["Pred no", "Pred yes"])
+    ax_cm.set_yticklabels(["Actual no", "Actual yes"])
+    ax_cm.set_title("OOF Confusion Matrix E0\n(Training/Dev: 36,168)")
+    th = cm.max() / 2.0
+    for r in range(2):
+        for c in range(2):
+            ax_cm.text(
+                c,
+                r,
+                f"{cm[r, c]:,}",
+                ha="center",
+                va="center",
+                color="white" if cm[r, c] > th else "black",
+                fontweight="bold",
+                fontsize=10.5,
+            )
 
     fig.tight_layout()
-    p2 = FIGURES_DIR / "02_e0_vs_e1_roc_pr_curves.png"
+    p2 = FIGURES_DIR / "02_baseline_oof_roc_pr_confusion.png"
     fig.savefig(p2, bbox_inches="tight")
     plt.close(fig)
     saved.append(p2)
-
-    # 3. Metric bar comparison with 95% CI + Confusion Matrices for E0 and primary E1
-    e0_res = holdout_results[0]
-    e1_res = holdout_results[1]
-
-    fig = plt.figure(figsize=(14, 5.2))
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.65, 1.0, 1.0])
-    ax_bar = fig.add_subplot(gs[0, 0])
-
-    x = np.arange(len(METRIC_KEYS))
-    w = 0.36
-    e0_vals = [e0_res[m] for m in METRIC_KEYS]
-    e1_vals = [e1_res[m] for m in METRIC_KEYS]
-    e0_err = np.array([[e0_res[m] - e0_res[f"{m}_ci95_low"], e0_res[f"{m}_ci95_high"] - e0_res[m]] for m in METRIC_KEYS]).T
-    e1_err = np.array([[e1_res[m] - e1_res[f"{m}_ci95_low"], e1_res[f"{m}_ci95_high"] - e1_res[m]] for m in METRIC_KEYS]).T
-
-    ax_bar.bar(x - w / 2, e0_vals, width=w, yerr=e0_err, capsize=3, color="#4C72B0",
-               label=f"E0 Standard (k={e0_res['k']}, {e0_res['weights']})")
-    ax_bar.bar(x + w / 2, e1_vals, width=w, yerr=e1_err, capsize=3, color="#55A868",
-               label=f"E1 Optimized (k={e1_res['k']}, {e1_res['weights']})")
-    ax_bar.set_xticks(x)
-    ax_bar.set_xticklabels(["Acc", "Prec", "Rec", "F1", "PR-AUC", "ROC-AUC", "MCC", "G-Mean"], rotation=20)
-    ax_bar.set_ylim(0, 1.05)
-    ax_bar.set_title("Perbandingan Metrik Hold-out Test (±95% Bootstrap CI)")
-    ax_bar.set_ylabel("Skor Metrik")
-    ax_bar.legend(fontsize=8.5, loc="upper right")
-
-    for idx_cm, res in enumerate([e0_res, e1_res]):
-        ax_cm = fig.add_subplot(gs[0, 1 + idx_cm])
-        cm = np.array([[res["tn"], res["fp"]], [res["fn"], res["tp"]]])
-        ax_cm.imshow(cm, cmap="Blues")
-        ax_cm.set_xticks([0, 1])
-        ax_cm.set_yticks([0, 1])
-        ax_cm.set_xticklabels(["Pred no", "Pred yes"])
-        ax_cm.set_yticklabels(["Actual no", "Actual yes"])
-        ax_cm.set_title(f"Confusion Matrix {res['model_id']}\n(k={res['k']}, {res['weights']})")
-        thresh = cm.max() / 2.0
-        for r in range(2):
-            for c in range(2):
-                ax_cm.text(
-                    c,
-                    r,
-                    f"{cm[r, c]:,}",
-                    ha="center",
-                    va="center",
-                    color="white" if cm[r, c] > thresh else "black",
-                    fontweight="bold",
-                    fontsize=10.5,
-                )
-
-    fig.tight_layout()
-    p3 = FIGURES_DIR / "03_e0_vs_e1_confusion_and_metrics.png"
-    fig.savefig(p3, bbox_inches="tight")
-    plt.close(fig)
-    saved.append(p3)
 
     return saved
 
 
 def build_report(
     eq_df: pd.DataFrame,
-    cv_summary: pd.DataFrame,
-    best_f1_row: pd.Series,
-    best_prauc_row: pd.Series,
-    holdout_df: pd.DataFrame,
-    cm_df: pd.DataFrame,
+    summary_df: pd.DataFrame,
     figure_paths: list[Path],
 ) -> str:
-    """Build Laporan_Baseline_KNN_DIFW_KNN.md."""
-    cv_compact = cv_summary.copy()
-    for col in cv_compact.columns:
-        if col.endswith("_mean") or col.endswith("_std"):
-            cv_compact[col] = cv_compact[col].round(4)
-
-    cv_display_cols = [
-        "weights",
+    """Build Laporan_Baseline_KNN_DIFW_KNN.md strictly scoped to Development Data."""
+    e0 = summary_df.iloc[0]
+    disp_cols = [
+        "variant",
         "k",
+        "weights",
         "accuracy_mean",
         "precision_yes_mean",
         "recall_yes_mean",
@@ -253,82 +295,44 @@ def build_report(
         "mcc_mean",
         "g_mean_mean",
     ]
-
-    holdout_compact = holdout_df[
-        [
-            "model_id",
-            "model_name",
-            "k",
-            "weights",
-            "accuracy",
-            "precision_yes",
-            "recall_yes",
-            "f1_yes",
-            "pr_auc",
-            "roc_auc",
-            "mcc",
-            "g_mean",
-            "fit_sec",
-            "predict_sec",
-        ]
-    ].copy()
-    for c in METRIC_KEYS:
-        holdout_compact[c] = holdout_compact[c].round(4)
-
-    e0 = holdout_df.iloc[0]
-    e1 = holdout_df.iloc[1]
-
-    ci_rows = []
-    for _, r in holdout_df.iterrows():
-        row_ci = {"model_id": r["model_id"], "config": f"k={r['k']}, {r['weights']}"}
-        for m in METRIC_KEYS:
-            row_ci[m] = f"{r[m]:.4f} [{r[f'{m}_ci95_low']:.4f}, {r[f'{m}_ci95_high']:.4f}]"
-        ci_rows.append(row_ci)
-    ci_df = pd.DataFrame(ci_rows)
+    cm_cols = ["variant", "oof_tn", "oof_fp", "oof_fn", "oof_tp"]
 
     lines = [
-        "# LAPORAN TAHAP 04 — BASELINE KNN (`E0` STANDARD & `E1` OPTIMIZED)",
+        "# LAPORAN TAHAP 04 — BASELINE KNN (`TRAINING / DEVELOPMENT DATA`)",
         "",
         "**Modul Kode:** [`src/baseline_knn.py`](file:///c:/Users/Advan%20Workplus/Downloads/jurnak/src/baseline_knn.py), [`src/04_baseline_knn.py`](file:///c:/Users/Advan%20Workplus/Downloads/jurnak/src/04_baseline_knn.py)  ",
-        "**Notebook:** [`notebooks/04_Baseline_KNN.ipynb`](file:///c:/Users/Advan%20Workplus/Downloads/jurnak/notebooks/04_Baseline_KNN.ipynb)",
+        "**Notebook:** [`notebooks/04_Baseline_KNN.ipynb`](file:///c:/Users/Advan%20Workplus/Downloads/jurnak/notebooks/04_Baseline_KNN.ipynb)  ",
+        "**Kepatuhan Alur Kerja (*Flowchart*):** Tahap ini **hanya menggunakan `Training / Development Data` (`36.168` baris)**; `Hold-out Test Data` (`9.043` baris) tetap dikunci dan **belum diakses** hingga Tahap 07 (*Final Model Evaluation*).",
         "",
         "---",
         "",
-        "## 1. Unit Test Ekuivalensi Pencarian Tetangga",
+        "## 1. Spesifikasi Arsitektur Baseline KNN (`E0`)",
         "",
-        "Memastikan implementasi cepat berbasis `NearestNeighbors` menghasilkan probabilitas prediksi yang **identik secara matematis** dengan `sklearn.neighbors.KNeighborsClassifier` (toleransi $< 10^{-9}$) pada Fold 0:",
+        "- **Representasi Fitur:** `StandardScaler` pada 6 fitur numerik + `OneHotEncoder(handle_unknown='ignore')` pada 10 fitur kategorikal/biner (`52` dimensi setelah transformasi per *fold* latih).",
+        "- ** Pengukuran Jarak:** Jarak Euclidean standar tanpa pembobotan fitur domain.",
+        "- **Konfigurasi Dasar (`E0`):** `k = 5`, `weights = 'uniform'`, *decision threshold* $\\tau = 0,50$.",
+        "",
+        "---",
+        "",
+        "## 2. Unit Test Ekuivalensi Implementasi Pencarian Tetangga (Fold 0)",
         "",
         df_to_markdown_table(eq_df),
         "",
         "---",
         "",
-        "## 2. Hasil Tuning Hyperparameter pada Stratified 5-Fold CV (`36.168` Data Training)",
+        "## 3. Profil Kinerja Baseline pada 5-Fold Development Set (`36.168` Observasi)",
         "",
-        f"- **Kandidat Terbaik berdasarkan `F1 (yes)` & `MCC` (dipilih sebagai `E1` utama):** `k = {int(best_f1_row['k'])}`, `weights = '{best_f1_row['weights']}'` -> CV `F1 = {best_f1_row['f1_yes_mean']:.4f}`, `MCC = {best_f1_row['mcc_mean']:.4f}`, `PR-AUC = {best_f1_row['pr_auc_mean']:.4f}`, `ROC-AUC = {best_f1_row['roc_auc_mean']:.4f}`.",
-        f"- **Kandidat Terbaik berdasarkan `PR-AUC`:** `k = {int(best_prauc_row['k'])}`, `weights = '{best_prauc_row['weights']}'` -> CV `PR-AUC = {best_prauc_row['pr_auc_mean']:.4f}`, `ROC-AUC = {best_prauc_row['roc_auc_mean']:.4f}`, `F1 = {best_prauc_row['f1_yes_mean']:.4f}`, `MCC = {best_prauc_row['mcc_mean']:.4f}`.",
+        df_to_markdown_table(summary_df[disp_cols]),
         "",
-        df_to_markdown_table(cv_compact[cv_display_cols]),
+        "### Out-of-Fold Confusion Matrix (36.168 Baris Training/Development)",
         "",
-        "> **Observasi Peneliti (Fenomena Klasik Imbalanced KNN pada Euclidean):**",
-        "> Semakin besar nilai $k$, probabilitas lokal $\\hat{P}(\\text{yes}|x)$ menjadi lebih halus sehingga metrik berbasis ranking (`PR-AUC` dan `ROC-AUC`) meningkat hingga sekitar $k=51$–$101$. Namun pada *decision threshold* standar `0.50`, nilai $k$ besar menyebabkan kelas minoritas (`11,70%`) kalah suara sehingga `Recall (yes)` turun. Ini menjadi bukti empiris awal mengapa penelitian ini membutuhkan **Mixed-Type Distance + Supervised Feature Weighting (`E3`) + Cost-Sensitive Decision Rule (`E4`/`E5`)**.",
+        df_to_markdown_table(summary_df[cm_cols]),
         "",
-        "---",
-        "",
-        "## 3. Hasil Evaluasi pada Hold-out Test Set (`9.043` Observasi)",
-        "",
-        df_to_markdown_table(holdout_compact),
-        "",
-        "### Interval Kepercayaan Bootstrap 95% (`n_boot = 1.000`)",
-        "",
-        df_to_markdown_table(ci_df),
-        "",
-        "### Confusion Matrix Hold-out Test",
-        "",
-        df_to_markdown_table(cm_df),
-        "",
-        "> **Ringkasan Kinerja Baseline (`E0` vs `E1`):**",
-        f"> - **`E0 (Standard KNN, k=5, uniform)`:** `Accuracy = {e0['accuracy']:.4f}`, `Precision = {e0['precision_yes']:.4f}`, `Recall = {e0['recall_yes']:.4f}`, `F1 = {e0['f1_yes']:.4f}`, `PR-AUC = {e0['pr_auc']:.4f}`, `ROC-AUC = {e0['roc_auc']:.4f}`, `MCC = {e0['mcc']:.4f}`, `G-Mean = {e0['g_mean']:.4f}`.",
-        f"> - **`E1 (Optimized KNN, k={int(e1['k'])}, {e1['weights']})`:** `Accuracy = {e1['accuracy']:.4f}`, `Precision = {e1['precision_yes']:.4f}`, `Recall = {e1['recall_yes']:.4f}`, `F1 = {e1['f1_yes']:.4f}`, `PR-AUC = {e1['pr_auc']:.4f}`, `ROC-AUC = {e1['roc_auc']:.4f}`, `MCC = {e1['mcc']:.4f}`, `G-Mean = {e1['g_mean']:.4f}`.",
+        "> **Diagnosis Kelemahan Baseline KNN pada Data Training:**",
+        f"> - Pada konfigurasi standar `E0 (k=5, uniform)`, nilai `Accuracy` tampak tinggi (`{e0['accuracy_mean']:.4f}`) semata-mata karena kelas mayoritas `no` mendominasi `88,30%` data.",
+        f"> - Namun untuk kelas target `yes`, `Recall` hanya mencapai **`{e0['recall_yes_mean']:.4f}`** (`{int(e0['oof_fn']):,}` dari `{int(e0['oof_fn'] + e0['oof_tp']):,}` nasabah potensial gagal terdeteksi!), dengan `F1 = {e0['f1_yes_mean']:.4f}`, `PR-AUC = {e0['pr_auc_mean']:.4f}`, dan `MCC = {e0['mcc_mean']:.4f}`.",
+        "> - Kelemahan ini timbul karena: (1) jarak Euclidean di atas `52` kolom *one-hot + z-score* terdistorsi oleh outlier numerik dan dilusi fitur berdaya pisah rendah, serta (2) ambang batas $\\tau = 0,50$ tidak memperhitungkan ketimpangan biaya kesalahan (*false negative* vs *false positive*).",
+        "> - Model Baseline KNN selanjutnya akan dibawa ke **Tahap 06 (`Cross-Validation & Hyperparameter Tuning`)** bersama **Tahap 05 (`Proposed DIFW-KNN`)**.",
         "",
         "---",
         "",
@@ -342,19 +346,16 @@ def build_report(
 
 
 def main() -> None:
-    """Execute Stage 04 Baseline KNN CV tuning and Hold-out evaluation."""
+    """Execute Stage 04 Baseline KNN strictly on Training / Development Data."""
     configure_plot_style()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     train_df = pd.read_csv(PROCESSED_DIR / "train_split.csv")
-    test_df = pd.read_csv(PROCESSED_DIR / "test_split.csv")
     folds_df = pd.read_csv(PROCESSED_DIR / "train_cv_folds.csv")
 
     X_train_df = train_df.drop(columns=["y"])
     y_train = train_df["y"].to_numpy(dtype=np.int64)
-    X_test_df = test_df.drop(columns=["y"])
-    y_test = test_df["y"].to_numpy(dtype=np.int64)
     fold_ids = folds_df["fold_id"].to_numpy(dtype=np.int64)
 
     # 1. Equivalence unit check on Fold 0
@@ -365,96 +366,31 @@ def main() -> None:
     eq_df = verify_knn_probability_equivalence(X_tr0, y_train[~val0], X_va0)
     eq_df.to_csv(OUTPUT_DIR / "unit_test_equivalence.csv", index=False)
 
-    # 2. Stratified 5-fold CV grid search
-    per_fold_df, cv_summary = run_stratified_cv_grid(
+    # 2. Evaluate Baseline KNN on 5-Fold Development splits
+    per_fold_df, summary_df, oof_probs = evaluate_baseline_on_dev_folds(
         X_train_df=X_train_df,
         y_train=y_train,
         fold_ids=fold_ids,
-        k_grid=K_GRID,
-        weights_grid=WEIGHTS_GRID,
     )
-    per_fold_df.to_csv(OUTPUT_DIR / "cv_per_fold_results.csv", index=False)
-    cv_summary.to_csv(OUTPUT_DIR / "cv_grid_results.csv", index=False)
+    per_fold_df.to_csv(OUTPUT_DIR / "dev_5fold_per_fold_metrics.csv", index=False)
+    summary_df.to_csv(OUTPUT_DIR / "dev_5fold_baseline_summary.csv", index=False)
 
-    # 3. Select E1 best configs from CV
-    best_f1_row = cv_summary.sort_values(
-        ["f1_yes_mean", "mcc_mean", "pr_auc_mean"],
-        ascending=False,
-    ).iloc[0]
-    best_prauc_row = cv_summary.sort_values(
-        ["pr_auc_mean", "roc_auc_mean", "f1_yes_mean"],
-        ascending=False,
-    ).iloc[0]
-
-    # 4. Evaluate E0 & E1 on Hold-out Test Set
-    models_to_eval = [
-        ("E0", "Standard KNN", 5, "uniform"),
-        ("E1", "Optimized KNN", int(best_f1_row["k"]), str(best_f1_row["weights"])),
-    ]
-    if (int(best_prauc_row["k"]) != int(best_f1_row["k"])) or (
-        str(best_prauc_row["weights"]) != str(best_f1_row["weights"])
-    ):
-        models_to_eval.append(
-            ("E1-PR", "Optimized KNN (Best CV PR-AUC)", int(best_prauc_row["k"]), str(best_prauc_row["weights"]))
-        )
-
-    holdout_results: list[dict[str, Any]] = []
-    probs_map: dict[str, np.ndarray] = {}
-    for mid, mname, k_val, w_val in models_to_eval:
-        res, y_prob = evaluate_holdout_model(
-            X_train_df=X_train_df,
-            y_train=y_train,
-            X_test_df=X_test_df,
-            y_test=y_test,
-            k=k_val,
-            weights=w_val,
-            model_id=mid,
-            model_name=mname,
-            n_boot=N_BOOTSTRAP,
-            random_state=RANDOM_STATE,
-        )
-        holdout_results.append(res)
-        probs_map[mid] = y_prob
-
-    holdout_df = pd.DataFrame(holdout_results)
-    holdout_df.to_csv(OUTPUT_DIR / "holdout_test_results.csv", index=False)
-
-    cm_df = holdout_df[["model_id", "model_name", "k", "weights", "tn", "fp", "fn", "tp"]].copy()
-    cm_df.to_csv(OUTPUT_DIR / "confusion_matrices.csv", index=False)
-
-    pred_out = pd.DataFrame({"y_true": y_test})
-    for mid, p_arr in probs_map.items():
-        pred_out[f"prob_{mid.lower().replace('-', '_')}"] = p_arr
-    pred_out.to_csv(OUTPUT_DIR / "test_predictions_e0_e1.csv", index=False)
-
-    figure_paths = create_baseline_figures(
-        cv_summary=cv_summary,
-        best_f1_row=best_f1_row,
-        best_prauc_row=best_prauc_row,
-        holdout_results=holdout_results,
-        y_test=y_test,
-        probs_map=probs_map,
+    figure_paths = create_baseline_dev_figures(
+        per_fold_df=per_fold_df,
+        summary_df=summary_df,
+        y_train=y_train,
+        oof_probs=oof_probs,
     )
 
     report = build_report(
         eq_df=eq_df,
-        cv_summary=cv_summary,
-        best_f1_row=best_f1_row,
-        best_prauc_row=best_prauc_row,
-        holdout_df=holdout_df,
-        cm_df=cm_df,
+        summary_df=summary_df,
         figure_paths=figure_paths,
     )
     REPORT_PATH.write_text(report, encoding="utf-8")
 
-    print("Tahap 04 (Baseline KNN E0 & E1) selesai.")
-    for r in holdout_results:
-        print(
-            f"[{r['model_id']}] {r['model_name']} (k={r['k']}, {r['weights']}): "
-            f"Acc={r['accuracy']:.4f}, Prec={r['precision_yes']:.4f}, Rec={r['recall_yes']:.4f}, "
-            f"F1={r['f1_yes']:.4f}, PR-AUC={r['pr_auc']:.4f}, ROC-AUC={r['roc_auc']:.4f}, "
-            f"MCC={r['mcc']:.4f}, G-Mean={r['g_mean']:.4f}"
-        )
+    print("Tahap 04 (Baseline KNN — Training/Development Only) selesai.")
+    print(summary_df[["variant", "accuracy_mean", "precision_yes_mean", "recall_yes_mean", "f1_yes_mean", "pr_auc_mean", "roc_auc_mean", "mcc_mean"]].to_string(index=False))
 
 
 if __name__ == "__main__":

@@ -546,24 +546,52 @@ class DIFWKNNClassifier(BaseEstimator, ClassifierMixin):
 
         enc_q = self.metric_.transform(X) if isinstance(X, pd.DataFrame) else X
         n_q = enc_q.n_samples
+        n_r = self.X_train_enc_.n_samples
         distances = np.empty((n_q, k_eff), dtype=np.float64)
         indices = np.empty((n_q, k_eff), dtype=np.int64)
 
+        w = normalize_feature_weights(self.feature_weights_, n_features=len(self.metric_.feature_names_))
+        n_num = len(self.metric_.numeric_cols_)
+        n_cat = len(self.metric_.categorical_cols_)
+        w_num = w[:n_num]
+        w_cat = w[n_num:]
+        w_cat_sum = float(np.sum(w_cat))
+
+        use_blas = (n_cat > 0) and (w_cat_sum > 0.0) and (n_q * n_r >= 4096)
+        r_oh = (
+            self.metric_.build_weighted_categorical_onehot(self.X_train_enc_.categorical, w_cat)
+            if use_blas
+            else None
+        )
+
         for start in range(0, n_q, self.batch_size):
             end = min(start + self.batch_size, n_q)
-            q_batch = MixedTypeEncoded(
-                numeric=enc_q.numeric[start:end],
-                categorical=enc_q.categorical[start:end],
-                feature_names=enc_q.feature_names,
-            )
-            dist_batch = self.metric_.compute_weighted_distance_matrix(
-                q_batch,
-                self.X_train_enc_,
-                weights=self.feature_weights_,
-                batch_size=self.batch_size,
-            )
+            q_num = enc_q.numeric[start:end]
+            q_cat = enc_q.categorical[start:end]
 
-            if k_eff == self.X_train_enc_.n_samples:
+            if use_blas and r_oh is not None:
+                q_oh = self.metric_.build_weighted_categorical_onehot(q_cat, w_cat)
+                dist_batch = np.maximum(0.0, w_cat_sum - (q_oh @ r_oh.T))
+                assert self.metric_.ranges_ is not None
+                for j in range(n_num):
+                    if w_num[j] == 0.0:
+                        continue
+                    diff = np.abs(q_num[:, j : j + 1] - self.X_train_enc_.numeric[:, j][None, :])
+                    dist_batch += w_num[j] * np.minimum(1.0, diff / self.metric_.ranges_[j])
+            else:
+                q_batch = MixedTypeEncoded(
+                    numeric=q_num,
+                    categorical=q_cat,
+                    feature_names=enc_q.feature_names,
+                )
+                dist_batch = self.metric_.compute_weighted_distance_matrix(
+                    q_batch,
+                    self.X_train_enc_,
+                    weights=w,
+                    batch_size=self.batch_size,
+                )
+
+            if k_eff == n_r:
                 top_idx = np.argsort(dist_batch, axis=1, kind="stable")
                 top_dist = np.take_along_axis(dist_batch, top_idx, axis=1)
             else:

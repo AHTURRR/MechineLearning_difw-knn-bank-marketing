@@ -1,0 +1,10 @@
+id,sub_stage,check,value,status
+1,Mixed-Type Distance,"Self-distance d_j(x, x) = 0",max_diag=0.0e+00,PASS
+2,Mixed-Type Distance,"Simetri d_j(x, z) = d_j(z, x)",max_diff=0.0e+00,PASS
+3,Mixed-Type Distance,"Rentang d_j(x, z) dalam [0, 1]","[0.0000, 1.0000]",PASS
+4,Mixed-Type Distance,Ekuivalensi OpenBLAS vs exact loop,max_diff=2.22e-16,PASS
+5,Balanced Triplet Sampling,Proporsi anchor 50:50 & label valid,"pos_ratio=0.500, valid=True",PASS
+6,Triplet Margin Loss,Gradient check analitik vs numerik (<1e-7),max_abs_err=3.96e-11,PASS
+7,Feature Weight Learning,"Kendala simpleks (w_j >= 0, sum = 1)","min=0.00000, sum=1.000000000000",PASS
+8,Feature Weight Learning,Penurunan Triplet Margin Loss,0.28153 -> 0.22732,PASS
+9,Feature Weight Learning,Stabilitas bobot lintas 5 random seed,"Spearman=0.9906, Cosine=0.9993",PASS

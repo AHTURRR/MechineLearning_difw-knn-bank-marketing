@@ -60,9 +60,9 @@ class BalancedTripletSampler:
             raise ValueError(
                 f"positive_anchor_ratio harus dalam (0, 1), diterima {positive_anchor_ratio}."
             )
-        if mining_strategy not in {"random", "semi_hard"}:
+        if mining_strategy not in {"random", "semi_hard", "local_context"}:
             raise ValueError(
-                f"mining_strategy harus 'random' atau 'semi_hard', diterima {mining_strategy!r}."
+                f"mining_strategy harus 'random', 'semi_hard', atau 'local_context', diterima {mining_strategy!r}."
             )
         if candidate_pool_size <= 0:
             raise ValueError(f"candidate_pool_size harus > 0, diterima {candidate_pool_size}.")
@@ -179,6 +179,131 @@ class BalancedTripletSampler:
             )[:, 0]
             negative_idx[is_pos_anchor] = rng.choice(neg_pool, size=n_pos, replace=True)
             negative_idx[~is_pos_anchor] = rng.choice(pos_pool, size=n_neg, replace=True)
+
+            delta_d = np.empty((self.n_triplets, n_features), dtype=np.float64)
+            for start in range(0, self.n_triplets, batch_size):
+                end = min(start + batch_size, self.n_triplets)
+                enc_a = self._slice_encoded(encoded_X, anchor_idx[start:end])
+                enc_p = self._slice_encoded(encoded_X, positive_idx[start:end])
+                enc_n = self._slice_encoded(encoded_X, negative_idx[start:end])
+                d_ap = metric.compute_aligned_feature_distances(enc_a, enc_p)
+                d_an = metric.compute_aligned_feature_distances(enc_a, enc_n)
+                delta_d[start:end] = d_ap - d_an
+
+            return TripletBatch(
+                anchor_idx=anchor_idx,
+                positive_idx=positive_idx,
+                negative_idx=negative_idx,
+                anchor_labels=anchor_labels,
+                delta_feature_distances=delta_d,
+            )
+
+        if self.mining_strategy == "local_context":
+            from sklearn.neighbors import NearestNeighbors
+
+            # Hybrid 50% Global Class-Balanced + 50% Local-Context Target-Neighbor Triplets:
+            # Preserves multimodal intra-class clusters (e.g., campaign month & prior outcome)
+            # while maintaining global inter-class margin across all 16 domain features.
+            n_glob = self.n_triplets // 2
+            n_loc = self.n_triplets - n_glob
+
+            # Build normalized context embedding strictly from fitted metric parameters
+            emb_parts: list[np.ndarray] = []
+            if metric.numeric_cols_ and metric.q05_ is not None and metric.ranges_ is not None:
+                num_clipped = np.clip(
+                    (encoded_X.numeric - metric.q05_[None, :]) / metric.ranges_[None, :],
+                    0.0,
+                    1.0,
+                ).astype(np.float32)
+                emb_parts.append(num_clipped)
+
+            if metric.categorical_cols_:
+                preferred = [c for c in ("month", "poutcome") if c in metric.categorical_cols_]
+                ctx_cols = preferred if preferred else [
+                    c for c in metric.categorical_cols_ if len(metric.category_maps_[c]) >= 3
+                ]
+                if not ctx_cols:
+                    ctx_cols = list(metric.categorical_cols_)
+                for col in ctx_cols:
+                    j_cat = metric.categorical_cols_.index(col)
+                    n_c = len(metric.category_maps_[col])
+                    eye = np.eye(n_c, dtype=np.float32) * 0.5
+                    vals = encoded_X.categorical[:, j_cat]
+                    oh = eye[np.maximum(vals, 0)]
+                    if np.any(vals < 0):
+                        oh[vals < 0] = 0.0
+                    emb_parts.append(oh)
+
+            ctx_emb = (
+                np.hstack(emb_parts)
+                if emb_parts
+                else np.zeros((encoded_X.n_samples, 1), dtype=np.float32)
+            )
+
+            # Part A: Global balanced triplets (indices 0 .. n_glob - 1)
+            is_pos_g = is_pos_anchor[:n_glob]
+            n_pos_g = int(is_pos_g.sum())
+            n_neg_g = n_glob - n_pos_g
+            if n_pos_g > 0:
+                positive_idx[:n_glob][is_pos_g] = self._sample_excluding_self(
+                    pos_pool, anchor_idx[:n_glob][is_pos_g], size_per_row=1, rng=rng
+                )[:, 0]
+                negative_idx[:n_glob][is_pos_g] = rng.choice(neg_pool, size=n_pos_g, replace=True)
+            if n_neg_g > 0:
+                positive_idx[:n_glob][~is_pos_g] = self._sample_excluding_self(
+                    neg_pool, anchor_idx[:n_glob][~is_pos_g], size_per_row=1, rng=rng
+                )[:, 0]
+                negative_idx[:n_glob][~is_pos_g] = rng.choice(pos_pool, size=n_neg_g, replace=True)
+
+            # Part B: Local-context target-neighbor triplets (indices n_glob .. n_triplets - 1)
+            if n_loc > 0:
+                k_pos_nn = min(max(2, self.candidate_pool_size), len(pos_pool))
+                k_neg_nn = min(max(2, self.candidate_pool_size), len(neg_pool))
+                nn_pos = NearestNeighbors(n_neighbors=k_pos_nn, metric="manhattan", n_jobs=-1).fit(
+                    ctx_emb[pos_pool]
+                )
+                nn_neg = NearestNeighbors(n_neighbors=k_neg_nn, metric="manhattan", n_jobs=-1).fit(
+                    ctx_emb[neg_pool]
+                )
+
+                anch_loc = anchor_idx[n_glob:]
+                is_pos_l = is_pos_anchor[n_glob:]
+                pos_loc_out = np.empty(n_loc, dtype=np.int64)
+                neg_loc_out = np.empty(n_loc, dtype=np.int64)
+
+                n_pos_l = int(is_pos_l.sum())
+                n_neg_l = n_loc - n_pos_l
+                if n_pos_l > 0:
+                    a_pl = anch_loc[is_pos_l]
+                    _, nn_idx_p = nn_pos.kneighbors(ctx_emb[a_pl], n_neighbors=k_pos_nn)
+                    cand_global = pos_pool[nn_idx_p]
+                    # Pick random local neighbor rank >= 1 (excluding self)
+                    ranks = rng.integers(1, k_pos_nn, size=n_pos_l)
+                    chosen_p = cand_global[np.arange(n_pos_l), ranks]
+                    self_hit = chosen_p == a_pl
+                    if np.any(self_hit):
+                        chosen_p[self_hit] = self._sample_excluding_self(
+                            pos_pool, a_pl[self_hit], size_per_row=1, rng=rng
+                        )[:, 0]
+                    pos_loc_out[is_pos_l] = chosen_p
+                    neg_loc_out[is_pos_l] = rng.choice(neg_pool, size=n_pos_l, replace=True)
+
+                if n_neg_l > 0:
+                    a_nl = anch_loc[~is_pos_l]
+                    _, nn_idx_n = nn_neg.kneighbors(ctx_emb[a_nl], n_neighbors=k_neg_nn)
+                    cand_global_n = neg_pool[nn_idx_n]
+                    ranks_n = rng.integers(1, k_neg_nn, size=n_neg_l)
+                    chosen_n_same = cand_global_n[np.arange(n_neg_l), ranks_n]
+                    self_hit_n = chosen_n_same == a_nl
+                    if np.any(self_hit_n):
+                        chosen_n_same[self_hit_n] = self._sample_excluding_self(
+                            neg_pool, a_nl[self_hit_n], size_per_row=1, rng=rng
+                        )[:, 0]
+                    pos_loc_out[~is_pos_l] = chosen_n_same
+                    neg_loc_out[~is_pos_l] = rng.choice(pos_pool, size=n_neg_l, replace=True)
+
+                positive_idx[n_glob:] = pos_loc_out
+                negative_idx[n_glob:] = neg_loc_out
 
             delta_d = np.empty((self.n_triplets, n_features), dtype=np.float64)
             for start in range(0, self.n_triplets, batch_size):

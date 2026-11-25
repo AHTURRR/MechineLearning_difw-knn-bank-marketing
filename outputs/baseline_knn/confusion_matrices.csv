@@ -1,4 +1,0 @@
-model_id,model_name,k,weights,tn,fp,fn,tp
-E0,Standard KNN,5,uniform,7821,164,845,213
-E1,Optimized KNN,3,uniform,7716,269,802,256
-E1-PR,Optimized KNN (Best CV PR-AUC),51,distance,7926,59,914,144

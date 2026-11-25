@@ -151,3 +151,29 @@ def test_optimizer_recovers_informative_features_and_decreases_loss() -> None:
 
     _, stats = opt.evaluate_seed_stability(enc, y, metric, seeds=(42, 100, 2026))
     assert stats["mean_pairwise_cosine"] > 0.90
+
+
+def test_local_context_triplet_mining_validity_and_balance() -> None:
+    df, y = _make_separable_mixed_dataset(n_samples=220, pos_ratio=0.2, seed=21)
+    metric = MixedTypeDistanceMetric(
+        numeric_cols=["signal_num", "noise_num_1", "noise_num_2"],
+        categorical_cols=["signal_cat", "noise_cat"],
+        auto_engineer_pdays=False,
+    ).fit(df)
+    enc = metric.transform(df)
+
+    sampler = BalancedTripletSampler(
+        n_triplets=400,
+        positive_anchor_ratio=0.5,
+        mining_strategy="local_context",
+        candidate_pool_size=12,
+        margin=0.3,
+        random_state=42,
+    )
+    batch = sampler.sample(enc, y, metric)
+    assert batch.n_triplets == 400
+    assert float(np.mean(batch.anchor_labels == 1)) == pytest.approx(0.5)
+    assert np.all(y[batch.anchor_idx] == y[batch.positive_idx])
+    assert np.all(batch.anchor_idx != batch.positive_idx)
+    assert np.all(y[batch.anchor_idx] != y[batch.negative_idx])
+

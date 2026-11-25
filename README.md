@@ -38,34 +38,37 @@ DIFW-KNN/
 │   ├── cost_sensitive_decision.py                    # Developer 3: Cost-Sensitive Bayes Rule & Trade-off Grid
 │   ├── preprocessing.py                              # Modul DomainFeatureEngineer & BaselineEuclideanPreprocessor
 │   ├── baseline_knn.py                               # Modul reusable evaluasi & CV Baseline KNN (E0 & E1)
-│   ├── 01_eda.py                                     # Skrip CLI untuk Data Understanding & EDA
-│   ├── 02_preprocessing.py                           # Skrip CLI untuk Preprocessing & verifikasi metrik jarak
-│   ├── 03_stratified_split.py                        # Skrip CLI untuk Stratified Split & 5-Fold CV Setup
-│   └── 04_baseline_knn.py                            # Skrip CLI untuk Baseline KNN (E0 & E1)
+│   ├── 01_eda.py                                     # Tahap 01: Data Understanding & EDA
+│   ├── 02_preprocessing.py                           # Tahap 02: Preprocessing & Feature Engineering
+│   ├── 03_stratified_split.py                        # Tahap 03: Stratified Train-Test Split & 5-Fold Setup
+│   ├── 04_baseline_knn.py                            # Tahap 04: Baseline KNN (Training / Development Only)
+│   └── 05_proposed_difw_knn.py                       # Tahap 05: Proposed DIFW-KNN (6 Sub-Komponen pada Training Data)
 │
 ├── tests/
-│   ├── test_mixed_distance.py                        # Unit test metrik jarak Mixed-Type & rekayasa pdays
-│   ├── test_triplet_learning.py                      # Unit test BalancedTripletSampler, grad check, & optimizer
+│   ├── test_mixed_distance.py                        # Unit test metrik jarak Mixed-Type, OpenBLAS, & pdays
+│   ├── test_triplet_learning.py                      # Unit test BalancedTripletSampler (random/semi_hard/local_context)
 │   └── test_difw_knn.py                              # Unit & integration test Cost-Sensitive Rule & DIFW-KNN
 │
 ├── notebooks/
-│   ├── 01_DIFW_KNN_Mixed_Type_Distance_Triplet_Loss.ipynb  # Notebook integrasi DIFW-KNN (Dev 1, 2, 3)
-│   ├── 01_EDA.ipynb                                  # Notebook interaktif Data Understanding & EDA
-│   ├── 02_Preprocessing_FeatureEngineering.ipynb     # Notebook interaktif Preprocessing & Unit Checks
-│   ├── 03_Stratified_Train_Test_Split.ipynb          # Notebook interaktif Stratified Split & Balance Check
-│   └── 04_Baseline_KNN.ipynb                         # Notebook interaktif Baseline KNN (E0 & E1)
+│   ├── 01_EDA.ipynb                                  # Tahap 01: Data Understanding & EDA
+│   ├── 02_Preprocessing_FeatureEngineering.ipynb     # Tahap 02: Preprocessing & Feature Engineering
+│   ├── 03_Stratified_Train_Test_Split.ipynb          # Tahap 03: Stratified Split (Hold-out Test dikunci)
+│   ├── 04_Baseline_KNN.ipynb                         # Tahap 04: Baseline KNN (Training / Development Data)
+│   └── 05_Proposed_DIFW_KNN.ipynb                    # Tahap 05: Proposed DIFW-KNN (6 Sub-Komponen Algoritma Usulan)
 │
 ├── outputs/
 │   ├── eda/                                          # Tabel statistik & 5 grafik EDA
 │   ├── preprocessing/                                # Tabel parameter kuantil, unit checks, & 3 grafik
 │   ├── split/                                        # Uji KS/Chi2 covariate balance, ringkasan CV, & 2 grafik
-│   └── baseline_knn/                                 # Hasil 5-Fold CV, Hold-out Test + 95% CI, & 3 grafik
+│   ├── baseline_knn/                                 # Profil 5-Fold Development & OOF Baseline KNN (E0)
+│   └── proposed_difw_knn/                            # Validasi 9 check komponen, bobot fitur, 5-seed stability, & grafik
 │
 ├── Desain_Penelitian_DIFW_KNN.md                     # Dokumen desain & protokol penelitian
-├── Laporan_EDA_DIFW_KNN.md                           # Laporan Data Understanding & EDA
-├── Laporan_Preprocessing_DIFW_KNN.md                 # Laporan Preprocessing & Feature Engineering
-├── Laporan_Stratified_Split_DIFW_KNN.md              # Laporan Stratified Split, Balance Check, & 5-Fold CV
-├── Laporan_Baseline_KNN_DIFW_KNN.md                  # Laporan Baseline KNN (E0 & E1)
+├── Laporan_EDA_DIFW_KNN.md                           # Laporan Tahap 01: Data Understanding & EDA
+├── Laporan_Preprocessing_DIFW_KNN.md                 # Laporan Tahap 02: Preprocessing & Feature Engineering
+├── Laporan_Stratified_Split_DIFW_KNN.md              # Laporan Tahap 03: Stratified Split & 5-Fold Setup
+├── Laporan_Baseline_KNN_DIFW_KNN.md                  # Laporan Tahap 04: Baseline KNN (Training/Dev Only)
+├── Laporan_Proposed_DIFW_KNN.md                      # Laporan Tahap 05: Proposed DIFW-KNN (Training/Dev Only)
 ├── README.md
 └── requirements.txt                                  # Dependensi Python teruji (Python 3.13.7)
 ```
@@ -84,36 +87,42 @@ pip install -r requirements.txt
 pytest -v
 ```
 
-### 3. Menjalankan Skrip Python (`.py`)
+### 3. Menjalankan Skrip Python (`.py`) Sesuai Urutan Flowchart
 ```bash
-# Tahap 1: Data Understanding & EDA
+# Tahap 01: Data Understanding & EDA
 python src/01_eda.py
 
-# Tahap 2: Preprocessing, Feature Engineering, & Distance Unit Checks
+# Tahap 02: Preprocessing, Feature Engineering, & Distance Unit Checks
 python src/02_preprocessing.py
 
-# Tahap 3: Stratified Train-Test Split, Covariate Balance, & 5-Fold CV Setup
+# Tahap 03: Stratified Train-Test Split (80:20) & 5-Fold Development Setup
 python src/03_stratified_split.py
 
-# Tahap 4: Baseline KNN (E0 Standard & E1 Optimized via 5-Fold CV + Hold-out Test)
+# Tahap 04: Baseline KNN (Training / Development Data Only)
 python src/04_baseline_knn.py
+
+# Tahap 05: Proposed DIFW-KNN Algorithm Development (Training / Development Data Only)
+python src/05_proposed_difw_knn.py
 ```
 
 ### 4. Membuka Notebook Interaktif (`.ipynb`)
 Buka file berikut menggunakan VS Code atau JupyterLab (seluruh sel sudah dieksekusi dan menyertakan output tabel serta grafik *inline*):
-- `notebooks/01_DIFW_KNN_Mixed_Type_Distance_Triplet_Loss.ipynb`
 - `notebooks/01_EDA.ipynb`
 - `notebooks/02_Preprocessing_FeatureEngineering.ipynb`
 - `notebooks/03_Stratified_Train_Test_Split.ipynb`
 - `notebooks/04_Baseline_KNN.ipynb`
+- `notebooks/05_Proposed_DIFW_KNN.ipynb`
 
 ---
 
-## Status Tahapan Penelitian
+## Status Tahapan Penelitian (Sesuai Flowchart 01–09)
 
-- [x] **Tahap 1:** Data Understanding & Exploratory Data Analysis (`src/01_eda.py`, `notebooks/01_EDA.ipynb`)
-- [x] **Tahap 2:** Leak-Free Preprocessing & Feature Engineering (`src/preprocessing.py`, `src/mixed_type_distance.py`, `src/02_preprocessing.py`, `notebooks/02_Preprocessing_FeatureEngineering.ipynb`)
-- [x] **Tahap 3:** Stratified Train-Test Split & 5-Fold CV Setup (`src/03_stratified_split.py`, `notebooks/03_Stratified_Train_Test_Split.ipynb`)
-- [x] **Tahap 4:** Baseline KNN (`E0` Standard KNN & `E1` Optimized KNN via Stratified 5-Fold CV) (`src/baseline_knn.py`, `src/04_baseline_knn.py`, `notebooks/04_Baseline_KNN.ipynb`)
-- [x] **Tahap 5:** Proposed DIFW-KNN (`E2`–`E5`: Mixed-Type Distance, Balanced Triplet Margin Loss, & Cost-Sensitive Decision Rule) (`src/mixed_type_distance.py`, `src/triplet_learning.py`, `src/feature_weight_optimizer.py`, `src/cost_sensitive_decision.py`, `src/difw_knn.py`, `tests/`, `notebooks/01_DIFW_KNN_Mixed_Type_Distance_Triplet_Loss.ipynb`)
-- [ ] **Tahap 6:** Evaluasi Akhir Hold-Out Test Lanjutan (Tuning CV DIFW-KNN + Bootstrap CI) & Interpretasi LIME
+- [x] **Tahap 01 — Data Understanding & EDA:** (`src/01_eda.py`, `notebooks/01_EDA.ipynb`)
+- [x] **Tahap 02 — Preprocessing & Feature Engineering:** (`src/preprocessing.py`, `src/02_preprocessing.py`, `notebooks/02_Preprocessing_FeatureEngineering.ipynb`)
+- [x] **Tahap 03 — Stratified Train-Test Split (`Training/Dev` vs `Hold-out Test` Dikunci):** (`src/03_stratified_split.py`, `notebooks/03_Stratified_Train_Test_Split.ipynb`)
+- [x] **Tahap 04 — Baseline KNN (`Training / Development Data` Only):** (`src/baseline_knn.py`, `src/04_baseline_knn.py`, `notebooks/04_Baseline_KNN.ipynb`)
+- [x] **Tahap 05 — Proposed DIFW-KNN (`Mixed-Type Distance` $\rightarrow$ `Balanced Triplet Sampling` $\rightarrow$ `Triplet Margin Loss` $\rightarrow$ `Supervised Feature Weight Learning` $\rightarrow$ `Weighted KNN & Local Probability` $\rightarrow$ `Cost-Sensitive Decision Rule` pada `Training Data`):** (`src/05_proposed_difw_knn.py`, `notebooks/05_Proposed_DIFW_KNN.ipynb`)
+- [ ] **Tahap 06 — Cross-Validation & Hyperparameter Tuning (Gabungan Baseline KNN & Proposed DIFW-KNN pada Training Data)**
+- [ ] **Tahap 07 — Final Model Evaluation (Membuka `Hold-out Test Data` + 95% Bootstrap CI)**
+- [ ] **Tahap 08 — Comparative Analysis & Ablation Study (`E0` s.d. `E5`)**
+- [ ] **Tahap 09 — Explainability with LIME & Conclusions**

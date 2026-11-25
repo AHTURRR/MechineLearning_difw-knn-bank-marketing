@@ -78,11 +78,11 @@
 
 | Model | Accuracy | Precision (yes) | Recall (yes) | F1 (yes) | PR-AUC | MCC |
 |---|---:|---:|---:|---:|---:|---:|
-| Standard KNN (E0: k=5, uniform) | 0.8884 | 0.5650 | 0.2013 | 0.2969 | 0.2921 | 0.2907 |
-| Optimized KNN (E1: k=3, uniform; Best CV F1) | 0.8816 | 0.4876 | 0.2420 | 0.3234 | 0.2619 | 0.2863 |
-| Mixed-Type KNN (E2: k=21, uniform, tau=0.50) | 0.8956 | 0.6926 | 0.1938 | 0.3028 | 0.3948 | 0.3294 |
-| Feature-Weighted KNN (E3: k=21, triplet, tau=0.50) | 0.8875 | 0.5453 | 0.2335 | 0.3269 | 0.3604 | 0.3060 |
-| Cost-Sensitive KNN (E4: k=21, uniform, tau=0.20) | 0.8531 | 0.3947 | 0.4783 | 0.4325 | 0.3948 | 0.3511 |
-| DIFW-KNN lengkap (E5: k=21, triplet + cost tau=0.20) | 0.8277 | 0.3385 | 0.4953 | 0.4021 | 0.3604 | 0.3132 |
+| Standard KNN | — | — | — | — | — | — |
+| Optimized KNN | — | — | — | — | — | — |
+| Mixed-Type KNN | — | — | — | — | — | — |
+| Feature-Weighted KNN | — | — | — | — | — | — |
+| Cost-Sensitive KNN | — | — | — | — | — | — |
+| DIFW-KNN lengkap | — | — | — | — | — | — |
 
-**Catatan:** Seluruh metrik `E0`–`E5` diukur pada Hold-out Test Set yang sama (`9.043` observasi). Varian `E1-PR` (Best CV PR-AUC: `k=51, distance`) mencapai `PR-AUC = 0.4042` namun `F1 = 0.2284` (`Recall = 0.1361`) pada threshold `0.50`. Varian `E2`–`E5` dievaluasi pada `k=21`, `distance`-weighted local probability (`q=1.0`), `n_triplets=6000` (`margin=0.2, reg_lambda=0.05`), serta skenario biaya `C_FP=1.0, C_FN=4.0` (`tau*=0.20`).
+**Catatan:** Sesuai *flowchart* penelitian, tabel hasil akhir pada `Hold-out Test Set` (`9.043` observasi) dikunci dan baru akan diisi pada **Tahap 07 (`Final Model Evaluation`)** setelah `Baseline KNN` (Tahap 04) dan `Proposed DIFW-KNN` (Tahap 05) melewati **Tahap 06 (`Cross-Validation & Hyperparameter Tuning`)** pada `Training / Development Data` (`36.168` observasi).

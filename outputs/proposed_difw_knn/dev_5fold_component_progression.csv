@@ -1,0 +1,6 @@
+model_id,model_label,threshold,accuracy_mean,accuracy_std,precision_yes_mean,precision_yes_std,recall_yes_mean,recall_yes_std,f1_yes_mean,f1_yes_std,pr_auc_mean,pr_auc_std,roc_auc_mean,roc_auc_std,mcc_mean,mcc_std,g_mean_mean,g_mean_std,mean_cost_mean,mean_cost_std
+E0_dev,"Standard Euclidean KNN (k=5, uniform, tau=0.50)",0.5,0.8863,0.0028,0.5364,0.0333,0.2026,0.0196,0.2938,0.0243,0.2823,0.0158,0.6896,0.0115,0.2804,0.0252,0.4444,0.0216,,
+E2_dev,"Mixed-Type KNN (k=31, uniform, tau=0.50)",0.5,0.8923,0.0018,0.6549,0.0272,0.1676,0.0108,0.2668,0.0158,0.3917,0.0147,0.752,0.0059,0.294,0.0179,0.4068,0.0133,0.4972,0.0067
+E3_dev,"Feature-Weighted KNN (k=31, triplet, tau=0.50)",0.5,0.8941,0.0008,0.6224,0.0135,0.2408,0.0136,0.347,0.0127,0.4184,0.0116,0.7706,0.0083,0.3422,0.0077,0.4858,0.0132,0.4612,0.0063
+E4_dev,"Cost-Sensitive Mixed KNN (k=31, uniform, tau=0.1667)",0.1667,0.8332,0.0051,0.3516,0.0124,0.5041,0.0151,0.4142,0.0127,0.3917,0.0147,0.752,0.0059,0.3277,0.015,0.6648,0.0104,0.3989,0.0104
+E5_dev,"Proposed DIFW-KNN (k=31, triplet + tau=0.1667)",0.1667,0.8466,0.0032,0.3902,0.0081,0.5521,0.0201,0.4571,0.0099,0.4184,0.0116,0.7706,0.0083,0.3785,0.0119,0.6992,0.0115,0.3629,0.0096
