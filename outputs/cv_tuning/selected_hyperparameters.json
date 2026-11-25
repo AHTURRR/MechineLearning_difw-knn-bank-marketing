@@ -1,0 +1,57 @@
+{
+  "E0": {
+    "k": 5,
+    "weights": "uniform",
+    "threshold": 0.5
+  },
+  "E1": {
+    "k": 3,
+    "weights": "uniform",
+    "threshold": 0.5
+  },
+  "E1_PR": {
+    "k": 51,
+    "weights": "distance",
+    "threshold": 0.5
+  },
+  "E2": {
+    "k": 71,
+    "q": 0.5,
+    "neighbor_weights": "distance",
+    "threshold": 0.5
+  },
+  "E3": {
+    "margin": 0.4,
+    "reg_lambda": 0.15,
+    "k": 71,
+    "q": 0.5,
+    "neighbor_weights": "distance",
+    "mining_strategy": "local_context",
+    "n_triplets": 24000,
+    "candidate_pool_size": 25,
+    "max_iter": 180,
+    "threshold": 0.5
+  },
+  "E4": {
+    "k": 71,
+    "q": 0.5,
+    "neighbor_weights": "distance",
+    "c_fp": 1.0,
+    "c_fn": 5.0,
+    "threshold": 0.166667
+  },
+  "E5": {
+    "margin": 0.4,
+    "reg_lambda": 0.15,
+    "k": 71,
+    "q": 0.5,
+    "neighbor_weights": "distance",
+    "mining_strategy": "local_context",
+    "n_triplets": 24000,
+    "candidate_pool_size": 25,
+    "max_iter": 180,
+    "c_fp": 1.0,
+    "c_fn": 5.0,
+    "threshold": 0.166667
+  }
+}
