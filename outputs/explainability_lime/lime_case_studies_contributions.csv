@@ -1,0 +1,129 @@
+case_type,test_index,rank,feature_rule,lime_weight,abs_lime_weight
+TP_recovered_from_E0,8201,1,month=sep,0.223348,0.223348
+TP_recovered_from_E0,8201,2,poutcome=success,0.205866,0.205866
+TP_recovered_from_E0,8201,3,contact=cellular,0.056473,0.056473
+TP_recovered_from_E0,8201,4,housing=yes,-0.053104,0.053104
+TP_recovered_from_E0,8201,5,loan=no,0.049114,0.049114
+TP_recovered_from_E0,8201,6,pdays_recency > 0.00,0.022429,0.022429
+TP_recovered_from_E0,8201,7,day <= 8.00,0.018934,0.018934
+TP_recovered_from_E0,8201,8,default=no,0.018327,0.018327
+TP_recovered_from_E0,8201,9,job=management,0.018114,0.018114
+TP_recovered_from_E0,8201,10,age > 48.00,-0.017865,0.017865
+TP_recovered_from_E0,8201,11,74.00 < balance <= 451.00,-0.013858,0.013858
+TP_recovered_from_E0,8201,12,previously_contacted=1,0.010981,0.010981
+TP_recovered_from_E0,8201,13,previous > 0.00,0.008951,0.008951
+TP_recovered_from_E0,8201,14,campaign <= 1.00,0.008012,0.008012
+TP_recovered_from_E0,8201,15,education=tertiary,0.005268,0.005268
+TP_recovered_from_E0,8201,16,marital=single,0.00028,0.00028
+TP_high_conf,2058,1,poutcome=success,0.203153,0.203153
+TP_high_conf,2058,2,month=sep,0.184174,0.184174
+TP_high_conf,2058,3,housing=yes,-0.053807,0.053807
+TP_high_conf,2058,4,previously_contacted=1,0.048843,0.048843
+TP_high_conf,2058,5,contact=cellular,0.047241,0.047241
+TP_high_conf,2058,6,campaign <= 1.00,0.023121,0.023121
+TP_high_conf,2058,7,default=no,0.022491,0.022491
+TP_high_conf,2058,8,pdays_recency > 0.00,0.017439,0.017439
+TP_high_conf,2058,9,previous > 0.00,0.017146,0.017146
+TP_high_conf,2058,10,8.00 < day <= 16.00,-0.0129,0.0129
+TP_high_conf,2058,11,job=management,-0.004302,0.004302
+TP_high_conf,2058,12,451.00 < balance <= 1430.25,0.003883,0.003883
+TP_high_conf,2058,13,education=tertiary,0.002351,0.002351
+TP_high_conf,2058,14,loan=yes,-0.001673,0.001673
+TP_high_conf,2058,15,age > 48.00,0.001094,0.001094
+TP_high_conf,2058,16,marital=married,0.000324,0.000324
+FP_borderline,3752,1,month=jul,-0.073502,0.073502
+FP_borderline,3752,2,contact=cellular,0.05114,0.05114
+FP_borderline,3752,3,housing=no,0.048852,0.048852
+FP_borderline,3752,4,default=no,-0.046663,0.046663
+FP_borderline,3752,5,poutcome=unknown,-0.038685,0.038685
+FP_borderline,3752,6,age <= 33.00,0.027182,0.027182
+FP_borderline,3752,7,pdays_recency <= 0.00,-0.01914,0.01914
+FP_borderline,3752,8,previously_contacted=0,-0.018398,0.018398
+FP_borderline,3752,9,loan=no,0.018203,0.018203
+FP_borderline,3752,10,education=tertiary,0.015677,0.015677
+FP_borderline,3752,11,previous <= 0.00,-0.015531,0.015531
+FP_borderline,3752,12,74.00 < balance <= 451.00,-0.015176,0.015176
+FP_borderline,3752,13,job=management,0.012177,0.012177
+FP_borderline,3752,14,day <= 8.00,0.010704,0.010704
+FP_borderline,3752,15,campaign > 3.00,0.001062,0.001062
+FP_borderline,3752,16,marital=single,-0.000482,0.000482
+FP_high_prob,5281,1,month=sep,0.241908,0.241908
+FP_high_prob,5281,2,poutcome=success,0.086022,0.086022
+FP_high_prob,5281,3,contact=cellular,0.051118,0.051118
+FP_high_prob,5281,4,default=no,-0.051107,0.051107
+FP_high_prob,5281,5,housing=no,0.040376,0.040376
+FP_high_prob,5281,6,campaign <= 1.00,0.035441,0.035441
+FP_high_prob,5281,7,previously_contacted=1,0.032383,0.032383
+FP_high_prob,5281,8,pdays_recency > 0.00,0.025423,0.025423
+FP_high_prob,5281,9,39.00 < age <= 48.00,-0.013278,0.013278
+FP_high_prob,5281,10,previous > 0.00,0.012126,0.012126
+FP_high_prob,5281,11,loan=no,-0.01123,0.01123
+FP_high_prob,5281,12,marital=married,-0.00929,0.00929
+FP_high_prob,5281,13,8.00 < day <= 16.00,-0.008492,0.008492
+FP_high_prob,5281,14,job=admin.,0.005379,0.005379
+FP_high_prob,5281,15,education=secondary,0.005345,0.005345
+FP_high_prob,5281,16,451.00 < balance <= 1430.25,0.00389,0.00389
+FN_borderline,215,1,housing=no,0.06509,0.06509
+FN_borderline,215,2,contact=cellular,0.062967,0.062967
+FN_borderline,215,3,default=no,0.061447,0.061447
+FN_borderline,215,4,month=nov,-0.049029,0.049029
+FN_borderline,215,5,previously_contacted=1,0.035841,0.035841
+FN_borderline,215,6,previous > 0.00,0.019563,0.019563
+FN_borderline,215,7,marital=single,0.016788,0.016788
+FN_borderline,215,8,74.00 < balance <= 451.00,-0.016677,0.016677
+FN_borderline,215,9,age <= 33.00,0.014476,0.014476
+FN_borderline,215,10,poutcome=failure,0.01392,0.01392
+FN_borderline,215,11,loan=no,-0.013853,0.013853
+FN_borderline,215,12,education=secondary,0.013068,0.013068
+FN_borderline,215,13,job=student,-0.011654,0.011654
+FN_borderline,215,14,8.00 < day <= 16.00,0.010821,0.010821
+FN_borderline,215,15,pdays_recency > 0.00,0.006392,0.006392
+FN_borderline,215,16,1.00 < campaign <= 2.00,-0.003388,0.003388
+FN_clear_miss,2240,1,month=may,-0.072929,0.072929
+FN_clear_miss,2240,2,contact=cellular,0.045997,0.045997
+FN_clear_miss,2240,3,default=no,0.04535,0.04535
+FN_clear_miss,2240,4,housing=yes,-0.034653,0.034653
+FN_clear_miss,2240,5,previously_contacted=0,-0.02486,0.02486
+FN_clear_miss,2240,6,job=services,-0.02281,0.02281
+FN_clear_miss,2240,7,poutcome=unknown,-0.021768,0.021768
+FN_clear_miss,2240,8,previous <= 0.00,0.016721,0.016721
+FN_clear_miss,2240,9,age > 48.00,-0.01535,0.01535
+FN_clear_miss,2240,10,74.00 < balance <= 451.00,-0.010376,0.010376
+FN_clear_miss,2240,11,pdays_recency <= 0.00,-0.009924,0.009924
+FN_clear_miss,2240,12,education=primary,-0.008855,0.008855
+FN_clear_miss,2240,13,8.00 < day <= 16.00,0.004413,0.004413
+FN_clear_miss,2240,14,campaign > 3.00,0.003102,0.003102
+FN_clear_miss,2240,15,marital=married,0.000798,0.000798
+FN_clear_miss,2240,16,loan=no,-0.000617,0.000617
+TN_clear,11,1,contact=cellular,0.06366,0.06366
+TN_clear,11,2,1.00 < campaign <= 2.00,0.033702,0.033702
+TN_clear,11,3,housing=yes,-0.029816,0.029816
+TN_clear,11,4,default=no,0.02511,0.02511
+TN_clear,11,5,month=jan,-0.024238,0.024238
+TN_clear,11,6,previously_contacted=1,0.023487,0.023487
+TN_clear,11,7,job=services,-0.021257,0.021257
+TN_clear,11,8,balance <= 74.00,-0.019794,0.019794
+TN_clear,11,9,poutcome=failure,0.017707,0.017707
+TN_clear,11,10,previous > 0.00,-0.010701,0.010701
+TN_clear,11,11,loan=no,-0.010212,0.010212
+TN_clear,11,12,day > 21.00,-0.009624,0.009624
+TN_clear,11,13,marital=single,0.007833,0.007833
+TN_clear,11,14,pdays_recency > 0.00,0.007263,0.007263
+TN_clear,11,15,education=secondary,-0.003226,0.003226
+TN_clear,11,16,33.00 < age <= 39.00,0.000781,0.000781
+TN_borderline,7370,1,default=no,-0.089251,0.089251
+TN_borderline,7370,2,month=jun,0.056868,0.056868
+TN_borderline,7370,3,housing=no,0.055213,0.055213
+TN_borderline,7370,4,poutcome=unknown,-0.050444,0.050444
+TN_borderline,7370,5,previously_contacted=0,-0.039577,0.039577
+TN_borderline,7370,6,job=student,-0.031436,0.031436
+TN_borderline,7370,7,day > 21.00,-0.029644,0.029644
+TN_borderline,7370,8,age <= 33.00,0.029635,0.029635
+TN_borderline,7370,9,contact=telephone,-0.026769,0.026769
+TN_borderline,7370,10,marital=single,0.019329,0.019329
+TN_borderline,7370,11,campaign > 3.00,-0.018827,0.018827
+TN_borderline,7370,12,education=secondary,-0.010429,0.010429
+TN_borderline,7370,13,pdays_recency <= 0.00,0.005401,0.005401
+TN_borderline,7370,14,previous <= 0.00,0.001361,0.001361
+TN_borderline,7370,15,loan=no,0.001358,0.001358
+TN_borderline,7370,16,451.00 < balance <= 1430.25,-0.001344,0.001344
