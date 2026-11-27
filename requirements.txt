@@ -6,3 +6,4 @@ scikit-learn==1.9.0
 matplotlib==3.10.7
 pytest==9.1.1
 ipykernel==7.4.0
+lime==0.2.0.1
