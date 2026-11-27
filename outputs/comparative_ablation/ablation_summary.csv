@@ -1,0 +1,8 @@
+model_id,model_name,distance_metric,feature_weighting,decision_rule,accuracy,precision_yes,recall_yes,f1_yes,pr_auc,roc_auc,mcc,g_mean,mean_cost,cost_savings_vs_e0_pct
+E0,Standard KNN,Euclidean,Uniform (k=5),tau=0.50,0.8884,0.565,0.2013,0.2969,0.2921,0.7014,0.2907,0.4441,0.4853,0.0
+E1,Optimized KNN (Best CV F1),Euclidean,"CV-F1 (k=3, dist)",tau=0.50,0.8816,0.4876,0.242,0.3234,0.2619,0.6779,0.2863,0.4835,0.4732,2.51
+E1_PR,Optimized KNN (Best CV PR-AUC),Euclidean,"CV-PR (k=51, dist)",tau=0.50,0.8924,0.7094,0.1361,0.2284,0.4042,0.7656,0.2793,0.3676,0.5119,-5.47
+E2,Mixed-Type KNN,Mixed Quantile,Uniform,tau=0.50,0.8924,0.7033,0.1389,0.232,0.416,0.7733,0.2806,0.3713,0.5106,-5.19
+E3,Feature-Weighted KNN,Mixed Quantile,Hybrid Triplet Weights,tau=0.50,0.8968,0.6731,0.2297,0.3425,0.4479,0.7888,0.3528,0.4757,0.4637,4.47
+E4,Cost-Sensitive KNN,Mixed Quantile,Uniform,tau=0.1667 (5:1),0.8577,0.4125,0.5104,0.4563,0.416,0.7733,0.3783,0.6791,0.3714,23.47
+E5,DIFW-KNN Lengkap,Mixed Quantile,Hybrid Triplet Weights,tau=0.1667 (5:1),0.8628,0.4299,0.5302,0.4748,0.4479,0.7888,0.3998,0.6934,0.3571,26.43

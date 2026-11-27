@@ -1,0 +1,3 @@
+actual_class,total,both_pred_yes,gained_yes_e0_no_e5_yes,lost_yes_e0_yes_e5_no,both_pred_no
+Actual YES (Positive),1058,209,352,4,493
+Actual NO (Negative),7985,138,606,26,7215

@@ -1,0 +1,9 @@
+transition,component_effect,delta_pr_auc,delta_roc_auc,delta_f1,delta_recall,delta_mcc,delta_accuracy,delta_mean_cost
+E0 -> E2,Add Mixed-Type Quantile Distance (vs Standard KNN),0.124,0.0719,-0.0648,-0.0624,-0.0101,0.004,0.0252
+E1_PR -> E2,Replace Euclidean with Mixed-Type Distance (same ranking family),0.0119,0.0078,0.0037,0.0028,0.0013,0.0,-0.0013
+E2 -> E3,Add Hybrid Triplet Feature Weights (at tau=0.50),0.0319,0.0154,0.1105,0.0907,0.0722,0.0044,-0.0469
+E2 -> E4,Add Cost-Sensitive Bayes Rule (at uniform weights),0.0,0.0,0.2242,0.3715,0.0977,-0.0347,-0.1391
+E4 -> E5,Add Hybrid Triplet Feature Weights (on top of Cost-Sensitive),0.0319,0.0154,0.0185,0.0198,0.0215,0.0051,-0.0144
+E3 -> E5,Add Cost-Sensitive Bayes Rule (on top of Feature Weights),0.0,0.0,0.1323,0.3006,0.047,-0.0341,-0.1066
+E0 -> E5,Full DIFW-KNN vs Standard KNN Baseline,0.1558,0.0873,0.178,0.3289,0.1091,-0.0257,-0.1283
+E1 -> E5,Full DIFW-KNN vs Optimized Euclidean KNN (Best CV F1),0.186,0.1109,0.1514,0.2883,0.1135,-0.0188,-0.1161
